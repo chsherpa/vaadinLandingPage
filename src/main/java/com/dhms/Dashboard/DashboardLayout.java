@@ -20,6 +20,9 @@ public class DashboardLayout extends UI{
 
   }
 }
+//https://vaadin.com/docs/v8/framework/layout/layout-overview.html
+//https://vaadin.com/api/com/vaadin/ui/Layout.html
+
 ///*
 //
 ///**
