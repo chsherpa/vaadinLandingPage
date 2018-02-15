@@ -1,0 +1,272 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2018 Alex Michael, Andy Mayer, Bin Chen, Chhewang Sherpa, Mackenzie Wangenstein, Warren Black
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
+
+package Dashboard;
+
+import com.byteowls.vaadin.chartjs.ChartJs;
+import com.byteowls.vaadin.chartjs.config.LineChartConfig;
+import com.vaadin.server.Sizeable.Unit;
+import com.vaadin.tapio.googlemaps.GoogleMap;
+import com.vaadin.tapio.googlemaps.client.LatLon;
+import com.vaadin.tapio.googlemaps.client.events.MarkerClickListener;
+import com.vaadin.tapio.googlemaps.client.overlays.GoogleMapMarker;
+import com.vaadin.ui.Button;
+import com.vaadin.ui.Component;
+import com.vaadin.ui.CssLayout;
+import com.vaadin.ui.Label;
+import com.vaadin.ui.Notification;
+import com.vaadin.ui.Panel;
+import com.vaadin.ui.TextField;
+import com.vaadin.ui.VerticalLayout;
+import java.time.LocalDateTime;
+import java.util.Collection;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * DashboardController is called by DashboardUI to create charts for UI graphical data display
+ */
+public class DashboardController {
+
+  private static final Logger log = LoggerFactory.getLogger(DashboardController.class);
+  private static String googleMapsApiKey;
+
+  private DashboardController() {
+  }
+
+  /**
+   * Called by DashboardUI to create meshChart object for graphical display
+   *
+   * @return returns meshChart object to caller
+   */
+
+  public static void setGoogleMapsApiKey(String apiKey) {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "setGoogleMapsApiKey()");
+    googleMapsApiKey = apiKey;
+  }
+
+  private static GoogleMapMarker getMarker(Mesh mesh) {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "getMarker()");
+    GoogleMapMarker marker;
+    Location location = mesh.getLocation();
+    if (mesh.getStatus() == null) {
+      //place holder until ticket for non null mesh status is resolved and just return
+      return new GoogleMapMarker(mesh.getMeshId() + ":NOT_AVAILABLE",
+          new LatLon((double) location.getLatitude(),
+              (double) location.getLongitude()),
+          false);
+    } else {
+      switch (mesh.getStatus()) {
+        case ACTIVE:
+          marker = new GoogleMapMarker(mesh.getMeshId() + ":ACTIVE",
+              new LatLon((double) location.getLatitude(),
+                  (double) location.getLongitude()),
+              false);
+          //TODO: add marker icon graphic -- talk to smart vineyards to see if they want to pay for icons
+          //for now just add status to name
+          return marker;
+        case INACTIVE:
+          marker = new GoogleMapMarker(mesh.getMeshId() + ":INACTIVE",
+              new LatLon((double) location.getLatitude(), (double) location.getLongitude()),
+              false,
+              "VAADIN/widgetsets/grey-marker.png");
+          return marker;
+        default:
+          throw new RuntimeException("Invalid Mesh Status");
+      }
+    }
+  }
+
+  //TODO: Write JavaDoc
+  protected static ChartJs createMeshChart() {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "createMeshChart()");
+    int healthy = SystemController.getMeshHealthyCount();
+    int total = SystemController.getMeshCount();
+    int unhealthy = total - healthy;
+
+    ChartJs meshChart = new MeshesChart(healthy, unhealthy).createChart();
+    meshChart.setWidth("100%");
+    return meshChart;
+  }
+
+  /**
+   * Called by DashboardUI to create deviceChart object for graphical display
+   *
+   * @return returns deviceChart object to caller
+   */
+  protected static ChartJs createDevicesChart() {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "createDevicesChart()");
+    int healthy = SystemController.getDeviceHealthyCount();
+    int total = SystemController.getDeviceCount();
+    int unhealthy = total - healthy;
+
+    ChartJs devChart = new DevicesChart(healthy, unhealthy).createChart();
+    devChart.setWidth("100%");
+    return devChart;
+  }
+
+
+  /**
+   * Called by DashboardUI to create deviceHistory object for graphical display
+   *
+   * @return returns deviceHistory chart object to caller
+   */
+  protected static ChartJs createDevicesHistory() {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "createDevicesHistory()");
+    //create button and input field that prompts user for mesh id.
+    // if mesh id exits, add graph
+    ChartJs devHistChart = new DeviceHistoryChart().createDeviceHistory();
+    return devHistChart;
+  }
+
+  /**
+   * Called by DashboardUI to create meshHistory object for graphical display
+   *
+   * @return returns meshHistory chart object to caller
+   */
+  protected static ChartJs createMeshHistory(String meshId) {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "createMeshHistory()");
+    ChartJs meshHistChart = new MeshHistoryChart().createMeshHistory(meshId);
+    meshHistChart.setWidth("100%");
+//    meshHistChart.setHeight("130px");  //TODO: play around with
+    return meshHistChart;
+  }
+
+  //implemented in ticket: implementMeshMap
+  protected static GoogleMap createGraphicalMeshMap() {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "createGraphicalMeshMap()");
+    Collection<Mesh> meshes = SystemController.getAllMeshes();
+    GoogleMap googleMap = new GoogleMap(googleMapsApiKey, null, null);
+    googleMap.setSizeFull();
+    googleMap.setCenter(new LatLon(46.28267, -119.4273));
+    googleMap.setZoom(8);
+    //googleMap.setCenter(new LatLon(SV_LAT_COORDS, SV_LONG_COORDS));
+    for (Mesh mesh : meshes) {
+      GoogleMapMarker marker = getMarker(mesh);
+      googleMap.addMarker(marker);
+    }
+    return googleMap;
+  }
+
+  private static Button createButton(String label, String notification) {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "createButton()");
+    return new Button(label, click -> Notification.show(notification));
+  }
+
+  private static TextField createTextfield(String text) {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "createTextfield()");
+    TextField device = new TextField(text);
+    device.setWidth(6, Unit.EM);
+    return device;
+  }
+
+  private static ChartJs createEmptyLineChart() {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "createEmptyLineChart()");
+    ChartJs chartJs = new ChartJs(new LineChartConfig());
+    chartJs.setWidth("100%");
+//    chartJs.setHeight("130px"); //Bug: why can layout handle this but not clickable?
+    return chartJs;
+  }
+
+  protected static Label createLabel(String labelText) {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "createLabel()");
+    return new Label(labelText);
+  }
+
+  /*
+https://vaadin.com/elements/vaadin-combo-box - drop down component for date
+range - have
+ */
+  protected static VerticalLayout meshHistoryPrompt() {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "meshHistoryPrompt()");
+    VerticalLayout verticalLayout = new VerticalLayout();
+    // Pressable input and text field
+    TextField meshIdField = new TextField("Mesh id:");
+    meshIdField.setDescription("Enter mesh id to view 0history");
+
+    Button button = new Button("submit", new Button.ClickListener() {
+      public void buttonClick(Button.ClickEvent event) {
+        String meshId = meshIdField.getValue();
+        if (!meshId.isEmpty()) {
+          System.out.println("print mesh id:" + meshId + ".");
+          Component prevComponent = verticalLayout.getComponent(2);
+          if (prevComponent != null) {
+            verticalLayout
+                .replaceComponent(prevComponent, DashboardController.createMeshHistory(meshId));
+          } else {
+            //TODO: clear component.
+            verticalLayout.addComponent(DashboardController.createMeshHistory(meshId));
+          }
+        }
+      }
+    });
+    verticalLayout.addComponent(meshIdField);
+    verticalLayout.addComponent(button);
+    verticalLayout.addComponent(createEmptyLineChart());
+    return verticalLayout;
+  }
+
+  /**
+   * @return vaadin layout that holds google map layout
+   */
+  protected static VerticalLayout googleMapVerticalLayout() {
+    log.debug("{}: Entered {} method {}", LocalDateTime.now(), "DashboardController",
+        "googleMapVerticalLayout()");
+    VerticalLayout mapContent = new VerticalLayout();
+
+    GoogleMap googleMap = DashboardController.createGraphicalMeshMap();
+    mapContent.addComponent(googleMap);
+
+    Panel console = new Panel();
+    console.setHeight("100px");
+    final CssLayout consoleLayout = new CssLayout();
+    console.setContent(consoleLayout);
+    mapContent.addComponent(console);
+    mapContent.setSizeFull();
+    googleMap.addMarkerClickListener(new MarkerClickListener() {
+      @Override
+      public void markerClicked(GoogleMapMarker clickedMarker) {
+        Label consoleEntry = new Label("Mesh located at \""
+            + clickedMarker.getCaption() + "\" at ("
+            + clickedMarker.getPosition().getLat() + ", "
+            + clickedMarker.getPosition().getLon() + ").\n");
+        consoleLayout.addComponent(consoleEntry, 0);
+      }
+    });
+    return mapContent;
+  }
+}
